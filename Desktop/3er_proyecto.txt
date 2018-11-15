@@ -1,0 +1,336 @@
+
+
+***Consulta avanzada de 3 o mas niveles***
+
+select * from ( (select  P.nombre, P.Idproducto ,count(C.Nombre)  from M00110_Cliente C 
+    join T00120_Pedido P ON(M00110_Cliente.Id_cliente= T00120_Pedido.Idcliente)
+    join T00130_Detalle_pedido on (T00120_Pedido.Id_pedido = T00130_Detalle_pedido.Idpedido)
+    join M0080_Producto on(T00130_Detalle_pedido.Id_producto=M0080_Producto.Idproducto)
+group by C.Nombre, P.nombre, P.Idproducto
+
+HAVING P.Idproducto in (   select idproducto from  P0090_Cargo 
+    join M00100_Empleado on(P0090_Cargo.Id_cargo = M00100_Empleado.Idcargo)
+    join T00120_Pedido on (M00100_Empleado.Id_empleado=T00120_Pedido.idempleado)
+    join T00130_Detalle_pedido on (T00120_Pedido.Id_pedido = T00130_Detalle_pedido.Idpedido)
+    join M0080_Producto on(T00130_Detalle_pedido.Id_producto=M0080_Producto.Idproducto) 
+where cargo="sublimador"))  A
+
+    minus
+    ( select  P.nombre, P.Idproducto, count(C.Nombre)  
+    from M00110_Cliente C 
+    join T00120_Pedido P ON(M00110_Cliente.Id_cliente= T00120_Pedido.Idcliente)
+    join T00130_Detalle_pedido on (T00120_Pedido.Id_pedido = T00130_Detalle_pedido.Idpedido)
+    join M0080_Producto on(T00130_Detalle_pedido.Id_producto=M0080_Producto.Idproducto)
+group by C.Nombre, P.nombre, P.Idproducto) B) C;
+
+
+
+
+ 
+***procedimiento con cursor y parametro***
+
+--------da el reporte de pedidos de un cliente
+create or replace procedure reporte_cliente(nom in varchar2, ape in varchar2)
+is 
+cursor pedidos(cli number) is  
+    select p.fecha fecha, count(dp.idpedido) cantidad 
+    from  t00120_pedido p 
+    join t00130_detalle_pedido dp on (dp.idpedido = p.id_pedido) 
+    where p.idcliente = cli 
+    group by p.fecha order by p.fecha desc;
+id_cli number;
+fecha date;
+cantidad number;
+begin
+	select id_cliente into id_cli 
+	from m00110_cliente 
+	where nombre = nom and apellido = ape;
+open pedidos(id_cli);
+loop
+        fetch pedidos into fecha, cantidad;
+        exit when pedidos%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE('El dia '||fecha||' ordenó '||cantidad||' productos');
+end loop;
+close pedidos;
+end;
+
+
+call reporte_cliente('evert','Rincon');
+
+
+
+SET SERVEROUTPUT ON // ejecutar primero esto 
+
+
+
+
+
+
+
+
+
+
+
+
+
+***Procedimiento con parametros sin cursores**
+
+-- determina la existencia de un producto dado el nombre
+create or replace procedure existencia_producto(prod in varchar2)
+is 
+exist number;
+id_prod number;
+begin
+select count(*) into exist from m0080_producto where nombre = prod;
+if exist = 0 then
+    dbms_output.put_line('El producto no se encuentra en la Base de Datos');
+else
+    select id_producto into id_prod from m0080_producto where nombre = prod;
+    dbms_output.put_line('El producto ya esta registrado con el codigo '||id_prod);
+end if;
+end;
+
+
+call existencia_producto('short');
+
+
+
+
+
+
+------Muestra la existencia de un cargo dado un nombre-----
+create or replace procedure existencia_cargo(nomcargo in varchar2)
+is 
+exist number;
+idcargo number;
+begin
+select count(*) into exist 
+from p0090_cargo 
+where cargo = nomcargo;
+
+if exist = 0 then
+    dbms_output.put_line('El cargo no se encuentra en la Base de Datos de esta empresa');
+else
+    select id_cargo into idcargo 
+    from p0090_cargo
+    where cargo = nomcargo;
+    dbms_output.put_line('El cargo ya esta registrado en la empresa con el codigo: '||idcargo);
+end if;
+end;
+
+
+
+SET SERVEROUTPUT ON
+call existencia_cargo('Empacador');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+***Procedimiento sin parametro***
+
+--- muestra el total de productos
+create or replace procedure total_produc
+is 
+	total number;
+	begin
+	select count(*) into total 
+	from m0080_producto;
+    dbms_output.put_line('el total de productos es: '||total);
+
+end;
+
+
+call total_produc();
+
+
+
+
+
+----Muestra los empleado por cargo----
+create or replace procedure total_empleados
+is 
+	total number;
+	begin
+  	select count(*) into total 
+    from m00100_empleado
+    where idcargo=0;
+    dbms_output.put_line('el total de empleados que tiene cargo de Cajero e: '||total);
+    
+    select count(*) into total 
+    from m00100_empleado
+    where idcargo=7;
+    dbms_output.put_line('el total de empleados que tiene cargo de Gerente e: '||total);
+    
+    select count(*) into total 
+    from m00100_empleado
+    where idcargo=4;
+    dbms_output.put_line('el total de empleados que tiene cargo de Costura e: '||total);
+    
+    select count(*) into total 
+    from m00100_empleado
+    where idcargo=11;
+    dbms_output.put_line('el total de empleados que tiene cargo de Recepcion es: '||total);
+
+end;
+
+
+call total_empleados();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+***Procedimiento con excepcion***
+
+--- muestra los pedidos de un empleado y sino existe el empleado muestra una excepcion
+select p.fecha fecha, count(dp.idpedido) cantidad 
+    from  t00120_pedido p 
+    join t00130_detalle_pedido dp on (dp.idpedido = p.id_pedido) 
+    where p.idempleado = 3 
+    group by p.fecha order by p.fecha desc;
+
+create or replace procedure reporte_empleado(nom in varchar2, ape in varchar2)
+is 
+cursor pedidos(emp number) is  
+    select p.fecha fecha, count(dp.idpedido) cantidad 
+    from  t00120_pedido p 
+    join t00130_detalle_pedido dp on (dp.idpedido = p.id_pedido) 
+    where p.idempleado = emp 
+    group by p.fecha order by p.fecha desc;
+id_emp number;
+fecha date;
+cantidad number;
+begin
+select id_empleado into id_emp from m00100_empleado where nombre = nom and apellido = ape;
+open pedidos(id_emp);
+loop
+        fetch pedidos into fecha, cantidad;
+        exit when pedidos%NOTFOUND;
+        DBMS_OUTPUT.PUT_LINE('El dia '||fecha||' despachó '||cantidad||' productos');
+end loop;
+close pedidos;
+exception
+    when no_data_found then
+    DBMS_OUTPUT.PUT_LINE ('Empleado no encontrado');
+end;
+
+call reporte_empleado('evert','Rincon');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+***Trigger***
+
+-------valida que el precio del producto sea mayor a 10
+
+CREATE OR REPLACE TRIGGER ValidPricesProduct
+    BEFORE INSERT ON M0080_PRODUCTO 
+    FOR EACH ROW 
+    BEGIN
+         IF :NEW.PRECIO < 10 THEN
+            RAISE_APPLICATION_ERROR (-20000, ' Valor de precio no permitido!');
+         END IF;    
+    END;
+
+
+insert into m0080_producto values(6,'Pescador',5,2);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+***Funcion*** 
+
+-------------Muestra  la categoria del producto de acuerdo al precio------
+
+create or replace function categoria_precio(precio number)
+return varchar2
+is
+begin
+  if precio < 50000 then
+    return 'Accesible';
+  end if;  
+  if precio >= 50000 and precio <= 150000 then
+    return 'Normal';
+  end if;
+  if precio > 150000 then
+    return 'Costoso';
+  end if;  
+end;
+
+select nombre, precio, categoria_precio(precio) 
+from m0080_producto;
+
+
+
+
+-----------Muestra si un empleado puede disponer de servicio de transporte
+create or replace function direccion_empleado(direccion varchar2)
+return varchar2
+is
+begin
+  if direccion='Rubio' then
+    return 'Transporte no accesible';
+ else 
+ return 'Requiere transporte';
+ 
+ 
+  end if;  
+end;
+
+select nombre, direccion_empleado(direccion) 
+from m00110_cliente;
+
+
+
